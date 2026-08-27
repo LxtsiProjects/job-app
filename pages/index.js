@@ -80,7 +80,7 @@ export default function Dashboard() {
 
       await supabase.from('jobs').update({ is_applied: true }).eq('id', job.id)
 
-      generateCVPDF(profile).save(`CV_${safeName(job.company)}.pdf`)
+      generateCVPDF(profile, job).save(`CV_${safeName(job.company)}.pdf`)
       generateCoverLetterPDF(profile, job).save(`CoverLetter_${safeName(job.company)}.pdf`)
 
       fetchData(user.id)
