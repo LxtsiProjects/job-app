@@ -5,6 +5,7 @@ import { useRouter } from 'next/router'
 import Layout from '../components/Layout'
 import PipelineStrip from '../components/PipelineStrip'
 import Head from 'next/head'
+import { Send, MessageSquare, Trophy, ListChecks, ExternalLink } from 'lucide-react'
 
 export default function Dashboard() {
   const [user, setUser] = useState(null)
@@ -108,6 +109,18 @@ export default function Dashboard() {
         <p className="font-mono text-xs text-slate mb-2 tracking-wide">DASHBOARD</p>
         <h1 className="text-2xl font-semibold mb-6">Your pipeline</h1>
 
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+          <StatCard icon={Send} label="Applied" value={applications.length} color="text-stageApplied" />
+          <StatCard
+            icon={MessageSquare}
+            label="Interviews"
+            value={pipelineCounts.interview}
+            color="text-stageInterview"
+          />
+          <StatCard icon={Trophy} label="Offers" value={pipelineCounts.offer} color="text-stageOffer" />
+          <StatCard icon={ListChecks} label="Open jobs" value={pipelineCounts.new} color="text-slate" />
+        </div>
+
         <PipelineStrip counts={pipelineCounts} />
 
         <section className="mb-10">
@@ -126,7 +139,7 @@ export default function Dashboard() {
                 .map((job) => (
                   <div
                     key={job.id}
-                    className="bg-white border border-line rounded-card p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+                    className="bg-white border border-line rounded-card p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 transition-shadow hover:shadow-md"
                   >
                     <div>
                       <h3 className="font-medium text-ink">{job.title}</h3>
@@ -142,9 +155,9 @@ export default function Dashboard() {
                         href={job.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-sm text-signal hover:text-signalDark underline"
+                        className="text-sm text-signal hover:text-signalDark underline inline-flex items-center gap-1"
                       >
-                        View
+                        View <ExternalLink size={13} />
                       </a>
                       <button
                         onClick={() => markAsApplied(job)}
@@ -161,7 +174,9 @@ export default function Dashboard() {
         </section>
 
         <section>
-          <h2 className="text-sm font-semibold text-slate mb-3 tracking-wide">APPLICATIONS</h2>
+          <h2 className="text-sm font-semibold text-slate mb-3 tracking-wide">
+            APPLICATIONS {applications.length > 0 && `(${applications.length})`}
+          </h2>
           {applications.length === 0 ? (
             <EmptyState title="No applications yet" body="Apply to a job above to start tracking it here." />
           ) : (
@@ -215,4 +230,18 @@ function EmptyState({ title, body }) {
 
 function safeName(name) {
   return (name || 'company').replace(/\s+/g, '_')
+}
+
+function StatCard({ icon: Icon, label, value, color }) {
+  return (
+    <div className="bg-white border border-line rounded-card p-4 flex items-center gap-3">
+      <div className={`shrink-0 ${color}`}>
+        <Icon size={20} />
+      </div>
+      <div>
+        <p className="text-xl font-semibold font-mono leading-none">{value}</p>
+        <p className="text-xs text-slate mt-1">{label}</p>
+      </div>
+    </div>
+  )
 }
