@@ -7,6 +7,7 @@ import Head from 'next/head'
 
 const EMPTY_PROFILE = {
   name: '',
+  headline: '',
   email: '',
   phone: '',
   location: '',
@@ -76,9 +77,10 @@ export default function Profile() {
     }
   }
 
-  function downloadPreviewCV() {
+  function previewCV() {
     const doc = generateCVPDF(profile)
-    doc.save('CV_preview.pdf')
+    const blobUrl = doc.output('bloburl')
+    window.open(blobUrl, '_blank')
   }
 
   function update(field, value) {
@@ -104,7 +106,7 @@ export default function Profile() {
           </div>
           <div className="flex gap-2 shrink-0">
             <button
-              onClick={downloadPreviewCV}
+              onClick={previewCV}
               className="text-sm border border-line px-3 py-2 rounded-card hover:bg-line/40 transition-colors"
             >
               Preview CV
@@ -123,6 +125,11 @@ export default function Profile() {
           <h2 className="font-mono text-xs text-slate mb-4 tracking-wide">CONTACT</h2>
           <div className="grid sm:grid-cols-2 gap-4">
             <Field label="Full name" value={profile.name} onChange={(v) => update('name', v)} />
+            <Field
+              label="Headline (shown under your name)"
+              value={profile.headline}
+              onChange={(v) => update('headline', v)}
+            />
             <Field label="Email" value={profile.email} onChange={(v) => update('email', v)} readOnly />
             <Field label="Phone" value={profile.phone} onChange={(v) => update('phone', v)} />
             <Field label="Location" value={profile.location} onChange={(v) => update('location', v)} />
