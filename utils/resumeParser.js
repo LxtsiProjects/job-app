@@ -21,15 +21,20 @@ export function parseBlocks(text) {
     .map((block) => {
       const lines = block.split('\n').map((l) => l.trim()).filter(Boolean)
       const [headerLine, ...rest] = lines
-      const [title, org, location, start, end] = headerLine.split('|').map((s) => s?.trim() || '')
+      const hasPipe = headerLine.includes('|')
+      const [title, org, location, start, end] = hasPipe
+        ? headerLine.split('|').map((s) => s?.trim() || '')
+        : [headerLine, '', '', '', '']
 
       const bullets = []
       let reference = null
       for (const line of rest) {
         if (/^ref:/i.test(line)) {
           reference = line.replace(/^ref:/i, '').trim()
-        } else if (line.startsWith('-')) {
-          bullets.push(line.replace(/^-\s*/, ''))
+        } else {
+          // Lenient: any other line counts as a bullet, dash or not,
+          // so content never silently vanishes if the format isn't exact.
+          bullets.push(line.replace(/^[-•]\s*/, ''))
         }
       }
 
