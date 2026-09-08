@@ -57,7 +57,7 @@ export default function Login() {
   return (
     <Layout>
       <div className="min-h-screen flex items-center justify-center px-4">
-        <div className="bg-white border border-line rounded-card shadow-sm p-8 w-full max-w-sm">
+        <div className="bg-white border border-line rounded-2xl shadow-md p-8 w-full max-w-sm">
           <p className="font-mono text-xs text-slate mb-2 tracking-wide text-center">01 · SIGN IN</p>
           <h1 className="text-xl font-semibold mb-2 text-center">Job Application System</h1>
           <p className="mb-6 text-sm text-slate text-center">
