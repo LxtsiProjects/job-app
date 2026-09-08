@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../utils/supabaseClient'
 import { generateCVPDF, generateCoverLetterPDF } from '../utils/documentGenerator'
 import { useRouter } from 'next/router'
@@ -24,6 +24,35 @@ const STATUS_COLUMNS = [
   { key: 'offer', label: 'Offer', text: 'text-stageOffer', bg: 'bg-stageOffer/5', border: 'border-stageOffer/30' },
   { key: 'rejected', label: 'Rejected', text: 'text-stageRejected', bg: 'bg-stageRejected/5', border: 'border-stageRejected/30' },
 ]
+
+function startOfWeek(dateInput) {
+  const d = new Date(dateInput)
+  const day = d.getDay()
+  const diff = (day === 0 ? -6 : 1) - day
+  d.setDate(d.getDate() + diff)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+function weekLabel(dateStr) {
+  const jobWeekStart = startOfWeek(dateStr).getTime()
+  const thisWeekStart = startOfWeek(new Date()).getTime()
+  const diffWeeks = Math.round((thisWeekStart - jobWeekStart) / (7 * 24 * 60 * 60 * 1000))
+  if (diffWeeks <= 0) return 'This week'
+  if (diffWeeks === 1) return 'Last week'
+  const d = startOfWeek(dateStr)
+  return `Week of ${d.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' })}`
+}
+
+function groupByWeek(jobs) {
+  const groups = new Map()
+  for (const job of jobs) {
+    const label = weekLabel(job.created_at)
+    if (!groups.has(label)) groups.set(label, [])
+    groups.get(label).push(job)
+  }
+  return Array.from(groups.entries())
+}
 
 export default function Dashboard() {
   const [user, setUser] = useState(null)
@@ -51,7 +80,7 @@ export default function Dashboard() {
     try {
       const [{ data: profileData }, { data: jobsData }, { data: appsData }] = await Promise.all([
         supabase.from('users').select('*').eq('id', userId).single(),
-        supabase.from('jobs').select('*').order('created_at', { ascending: false }).limit(50),
+        supabase.from('jobs').select('*').order('created_at', { ascending: false }).limit(100),
         supabase
           .from('applications')
           .select('*, jobs(*)')
@@ -74,7 +103,7 @@ export default function Dashboard() {
       const { data, error } = await supabase.functions.invoke('scrape_jobs')
       if (error) throw error
       await fetchData(user.id)
-      alert(`Found ${data?.jobs_found ?? 0} listings this run.`)
+      alert(`Found ${data?.jobs_found ?? 0} new listings this run.`)
     } catch (err) {
       alert(`Couldn't refresh listings: ${err.message}`)
     } finally {
@@ -144,6 +173,8 @@ export default function Dashboard() {
     offer: applications.filter((a) => a.status === 'offer').length,
   }
 
+  const weeklyGroups = groupByWeek(jobs)
+
   if (!user) return null
 
   return (
@@ -174,7 +205,7 @@ export default function Dashboard() {
 
         <section className="mb-12">
           <div className="flex items-center justify-between mb-4">
-            <SectionHeading icon={Briefcase} eyebrow="LISTINGS" title="This week's roles" />
+            <SectionHeading icon={Briefcase} eyebrow="LISTINGS" title="Roles by week" />
             <button
               onClick={refreshListings}
               disabled={refreshing}
@@ -193,58 +224,21 @@ export default function Dashboard() {
               body="Click Refresh listings above to pull in jobs now, or wait for the weekly automatic run."
             />
           ) : (
-            <div className="space-y-3">
-              {jobs.map((job) => (
-                <div
-                  key={job.id}
-                  className={`border-l-4 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 transition-all ${
-                    job.is_applied
-                      ? 'bg-paper border-line opacity-60'
-                      : 'bg-white border-signal shadow-sm hover:shadow-md'
-                  }`}
-                >
-                  <div className="min-w-0">
-                    <h3 className={`font-semibold ${job.is_applied ? 'text-slate' : 'text-ink'}`}>
-                      {job.title}
-                    </h3>
-                    <p className="text-sm text-slate mt-0.5">
-                      {job.company} · {job.location}
-                    </p>
-                    <div className="flex items-center gap-2 mt-2">
-                      {job.salary && !job.is_applied && (
-                        <span className="text-xs font-mono bg-stageOffer/10 text-stageOffer px-2 py-0.5 rounded-full">
-                          {job.salary}
-                        </span>
-                      )}
-                      {job.source && (
-                        <span className="text-xs font-mono bg-line text-slate px-2 py-0.5 rounded-full">
-                          {job.source}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <a
-                      href={job.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-signal hover:text-signalDark underline inline-flex items-center gap-1"
-                    >
-                      View <ExternalLink size={13} />
-                    </a>
-                    {job.is_applied ? (
-                      <span className="text-sm inline-flex items-center gap-1 text-slate font-mono px-3 py-1.5">
-                        <Check size={14} /> Applied
-                      </span>
-                    ) : (
-                      <button
-                        onClick={() => markAsApplied(job)}
-                        disabled={applyingId === job.id}
-                        className="text-sm bg-signal hover:bg-signalDark text-white font-medium px-4 py-2 rounded-card transition-colors disabled:opacity-50 shadow-sm"
-                      >
-                        {applyingId === job.id ? 'Generating…' : 'Apply'}
-                      </button>
-                    )}
+            <div className="space-y-8">
+              {weeklyGroups.map(([label, weekJobs]) => (
+                <div key={label}>
+                  <p className="text-xs font-mono text-slate tracking-wide mb-3 uppercase">
+                    {label} · {weekJobs.length}
+                  </p>
+                  <div className="space-y-3">
+                    {weekJobs.map((job) => (
+                      <JobCard
+                        key={job.id}
+                        job={job}
+                        applyingId={applyingId}
+                        onApply={markAsApplied}
+                      />
+                    ))}
                   </div>
                 </div>
               ))}
@@ -263,50 +257,140 @@ export default function Dashboard() {
             {applications.length === 0 ? (
               <EmptyState icon={Inbox} title="No applications yet" body="Apply to a job above to start tracking it here." />
             ) : (
-              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {STATUS_COLUMNS.map((col) => {
-                  const items = applications.filter((a) => a.status === col.key)
-                  return (
-                    <div key={col.key} className={`rounded-2xl border ${col.border} ${col.bg} p-3`}>
-                      <div className="flex items-center justify-between mb-3 px-1">
-                        <p className={`text-xs font-semibold tracking-wide ${col.text}`}>{col.label}</p>
-                        <span className={`text-xs font-mono px-1.5 rounded-full bg-white ${col.text}`}>
-                          {items.length}
-                        </span>
-                      </div>
-                      <div className="space-y-2">
-                        {items.map((app) => (
-                          <div key={app.id} className="bg-white border border-line rounded-card p-3 shadow-sm">
-                            <h4 className="text-sm font-medium leading-tight">
-                              {app.jobs?.title || 'Unknown role'}
-                            </h4>
-                            <p className="text-xs text-slate mt-0.5">{app.jobs?.company}</p>
-                            <select
-                              value={app.status}
-                              onChange={(e) => updateStatus(app.id, e.target.value)}
-                              className="mt-2 w-full text-xs border border-line rounded px-1.5 py-1 bg-paper"
-                            >
-                              {STATUS_COLUMNS.map((s) => (
-                                <option key={s.key} value={s.key}>
-                                  {s.label}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        ))}
-                        {items.length === 0 && (
-                          <p className="text-xs text-slate italic px-1">Nothing here yet</p>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
+              <ApplicationsCarousel applications={applications} updateStatus={updateStatus} />
             )}
           </div>
         </section>
       </div>
     </Layout>
+  )
+}
+
+function JobCard({ job, applyingId, onApply }) {
+  return (
+    <div
+      className={`border-l-4 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 transition-all ${
+        job.is_applied
+          ? 'bg-paper border-line opacity-60'
+          : 'bg-white border-signal shadow-sm hover:shadow-md'
+      }`}
+    >
+      <div className="min-w-0">
+        <h3 className={`font-semibold ${job.is_applied ? 'text-slate' : 'text-ink'}`}>{job.title}</h3>
+        <p className="text-sm text-slate mt-0.5">
+          {job.company} · {job.location}
+        </p>
+        <div className="flex items-center gap-2 mt-2">
+          {job.salary && !job.is_applied && (
+            <span className="text-xs font-mono bg-stageOffer/10 text-stageOffer px-2 py-0.5 rounded-full">
+              {job.salary}
+            </span>
+          )}
+          {job.source && (
+            <span className="text-xs font-mono bg-line text-slate px-2 py-0.5 rounded-full">{job.source}</span>
+          )}
+        </div>
+      </div>
+      <div className="flex items-center gap-3 shrink-0">
+        <a
+          href={job.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sm text-signal hover:text-signalDark underline inline-flex items-center gap-1"
+        >
+          View <ExternalLink size={13} />
+        </a>
+        {job.is_applied ? (
+          <span className="text-sm inline-flex items-center gap-1 text-slate font-mono px-3 py-1.5">
+            <Check size={14} /> Applied
+          </span>
+        ) : (
+          <button
+            onClick={() => onApply(job)}
+            disabled={applyingId === job.id}
+            className="text-sm bg-signal hover:bg-signalDark text-white font-medium px-4 py-2 rounded-card transition-colors disabled:opacity-50 shadow-sm"
+          >
+            {applyingId === job.id ? 'Generating…' : 'Apply'}
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ApplicationsCarousel({ applications, updateStatus }) {
+  const [active, setActive] = useState(0)
+  const scrollRef = useRef(null)
+
+  function goTo(index) {
+    setActive(index)
+    const el = scrollRef.current
+    if (el) el.scrollTo({ left: index * el.clientWidth, behavior: 'smooth' })
+  }
+
+  function handleScroll() {
+    const el = scrollRef.current
+    if (el) setActive(Math.round(el.scrollLeft / el.clientWidth))
+  }
+
+  return (
+    <div>
+      <div className="flex gap-2 mb-4 overflow-x-auto no-scrollbar">
+        {STATUS_COLUMNS.map((col, i) => {
+          const count = applications.filter((a) => a.status === col.key).length
+          return (
+            <button
+              key={col.key}
+              onClick={() => goTo(i)}
+              className={`shrink-0 text-xs font-semibold px-3.5 py-2 rounded-full border transition-colors ${
+                active === i ? `${col.bg} ${col.text} ${col.border}` : 'border-line text-slate bg-white'
+              }`}
+            >
+              {col.label} · {count}
+            </button>
+          )
+        })}
+      </div>
+
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="flex overflow-x-auto snap-x snap-mandatory no-scrollbar -mx-1"
+      >
+        {STATUS_COLUMNS.map((col) => {
+          const items = applications.filter((a) => a.status === col.key)
+          return (
+            <div key={col.key} className="snap-start shrink-0 w-full px-1">
+              <div className={`rounded-2xl border ${col.border} ${col.bg} p-4 min-h-[180px]`}>
+                {items.length === 0 ? (
+                  <p className="text-xs text-slate italic text-center py-10">Nothing in {col.label} yet</p>
+                ) : (
+                  <div className="space-y-2">
+                    {items.map((app) => (
+                      <div key={app.id} className="bg-white border border-line rounded-card p-3 shadow-sm">
+                        <h4 className="text-sm font-medium leading-tight">{app.jobs?.title || 'Unknown role'}</h4>
+                        <p className="text-xs text-slate mt-0.5">{app.jobs?.company}</p>
+                        <select
+                          value={app.status}
+                          onChange={(e) => updateStatus(app.id, e.target.value)}
+                          className="mt-2 w-full text-xs border border-line rounded px-1.5 py-1 bg-paper"
+                        >
+                          {STATUS_COLUMNS.map((s) => (
+                            <option key={s.key} value={s.key}>
+                              {s.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 
