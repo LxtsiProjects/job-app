@@ -22,3 +22,11 @@ html, body {
     transition-duration: 0.001ms !important;
   }
 }
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
