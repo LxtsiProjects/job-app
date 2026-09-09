@@ -25,6 +25,14 @@ const STATUS_COLUMNS = [
   { key: 'rejected', label: 'Rejected', text: 'text-stageRejected', bg: 'bg-stageRejected/5', border: 'border-stageRejected/30' },
 ]
 
+const STALE_AFTER_DAYS = 21 // Adzuna/Jooble don't give real closing dates — this is an estimate
+
+function daysAgo(dateStr) {
+  if (!dateStr) return null
+  const diffMs = Date.now() - new Date(dateStr).getTime()
+  return Math.floor(diffMs / (1000 * 60 * 60 * 24))
+}
+
 function startOfWeek(dateInput) {
   const d = new Date(dateInput)
   const day = d.getDay()
@@ -166,14 +174,19 @@ export default function Dashboard() {
     }
   }
 
+  const activeJobs = jobs.filter((j) => {
+    const age = daysAgo(j.posted_at || j.created_at)
+    return age === null || age <= STALE_AFTER_DAYS
+  })
+
   const pipelineCounts = {
-    new: jobs.filter((j) => !j.is_applied).length,
+    new: activeJobs.filter((j) => !j.is_applied).length,
     applied: applications.filter((a) => a.status === 'applied').length,
     interview: applications.filter((a) => a.status === 'interview').length,
     offer: applications.filter((a) => a.status === 'offer').length,
   }
 
-  const weeklyGroups = groupByWeek(jobs)
+  const weeklyGroups = groupByWeek(activeJobs)
 
   function last4WeekCounts(items, dateField) {
     const now = new Date()
@@ -248,7 +261,7 @@ export default function Dashboard() {
         </div>
 
         <section className="mb-12">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-1">
             <SectionHeading icon={Briefcase} eyebrow="LISTINGS" title="Roles by week" />
             <button
               onClick={refreshListings}
@@ -259,13 +272,21 @@ export default function Dashboard() {
               {refreshing ? 'Refreshing…' : 'Refresh listings'}
             </button>
           </div>
+          <p className="text-xs text-slate mb-4">
+            Job boards don't share real closing dates, so listings older than {STALE_AFTER_DAYS} days are hidden as a
+            precaution — they may already be filled. Senior/lead/manager roles are filtered out automatically.
+          </p>
           {loading ? (
             <p className="text-sm text-slate">Loading…</p>
-          ) : jobs.length === 0 ? (
+          ) : activeJobs.length === 0 ? (
             <EmptyState
               icon={Inbox}
               title="No listings yet"
-              body="Click Refresh listings above to pull in jobs now, or wait for the weekly automatic run."
+              body={
+                jobs.length > 0
+                  ? "All current listings are older than 3 weeks and were hidden as likely closed. Click Refresh listings to check for new ones."
+                  : "Click Refresh listings above to pull in jobs now, or wait for the weekly automatic run."
+              }
             />
           ) : (
             <div className="space-y-8">
@@ -311,6 +332,7 @@ export default function Dashboard() {
 }
 
 function JobCard({ job, applyingId, onApply }) {
+  const age = daysAgo(job.posted_at || job.created_at)
   return (
     <div
       className={`border-l-4 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 transition-all ${
@@ -324,7 +346,7 @@ function JobCard({ job, applyingId, onApply }) {
         <p className="text-sm text-slate mt-0.5">
           {job.company} · {job.location}
         </p>
-        <div className="flex items-center gap-2 mt-2">
+        <div className="flex items-center gap-2 mt-2 flex-wrap">
           {job.salary && !job.is_applied && (
             <span className="text-xs font-mono bg-stageOffer/10 text-stageOffer px-2 py-0.5 rounded-full">
               {job.salary}
@@ -332,6 +354,11 @@ function JobCard({ job, applyingId, onApply }) {
           )}
           {job.source && (
             <span className="text-xs font-mono bg-line text-slate px-2 py-0.5 rounded-full">{job.source}</span>
+          )}
+          {age !== null && (
+            <span className="text-xs font-mono text-slate">
+              Posted {age === 0 ? 'today' : `${age}d ago`}
+            </span>
           )}
         </div>
       </div>
