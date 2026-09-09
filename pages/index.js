@@ -4,18 +4,9 @@ import { generateCVPDF, generateCoverLetterPDF } from '../utils/documentGenerato
 import { useRouter } from 'next/router'
 import Layout from '../components/Layout'
 import PipelineStrip from '../components/PipelineStrip'
+import StatsBento from '../components/StatsBento'
 import Head from 'next/head'
-import {
-  Send,
-  MessageSquare,
-  Trophy,
-  ListChecks,
-  ExternalLink,
-  RefreshCw,
-  Briefcase,
-  Kanban,
-  Inbox,
-} from 'lucide-react'
+import { ExternalLink, RefreshCw, Briefcase, Kanban, Inbox } from 'lucide-react'
 
 const STATUS_COLUMNS = [
   { key: 'applied', label: 'Applied', text: 'text-stageApplied', bg: 'bg-stageApplied/5', border: 'border-stageApplied/30' },
@@ -201,10 +192,6 @@ export default function Dashboard() {
   }
 
   const weeklyApplyTrend = last4WeekCounts(applications, 'applied_date')
-  const weeklyInterviewTrend = last4WeekCounts(
-    applications.filter((a) => a.status === 'interview'),
-    'applied_date'
-  )
 
   if (!user) return null
 
@@ -214,46 +201,21 @@ export default function Dashboard() {
         <title>Dashboard · Job Application System</title>
       </Head>
       <div className="max-w-6xl mx-auto px-6 sm:px-8 pt-10">
-        <div className="relative rounded-3xl overflow-hidden mb-[-2.5rem] px-8 py-10 bg-gradient-to-br from-ink via-ink to-signalDark">
-          <div
-            className="absolute inset-0 opacity-20"
-            style={{
-              backgroundImage:
-                'radial-gradient(circle at 85% 20%, rgba(255,255,255,0.5) 0%, transparent 45%)',
-            }}
-          />
-          <div className="relative">
-            <p className="font-mono text-xs text-white/60 mb-2 tracking-widest">DASHBOARD</p>
-            <h1 className="text-3xl font-semibold tracking-tight text-white">Your pipeline</h1>
-            <p className="text-sm text-white/70 mt-2 max-w-md">
-              {applications.length > 0
-                ? `${applications.length} applications tracked · ${pipelineCounts.new} new roles this week`
-                : 'Apply to your first role below to start tracking your pipeline'}
-            </p>
-          </div>
-        </div>
+        <p className="font-mono text-xs text-slate mb-2 tracking-widest">DASHBOARD</p>
+        <h1 className="text-3xl font-semibold tracking-tight mb-1">Your pipeline</h1>
+        <p className="text-sm text-slate mb-8 max-w-md">
+          {applications.length > 0
+            ? `${applications.length} applications tracked · ${pipelineCounts.new} new roles this week`
+            : 'Apply to your first role below to start tracking your pipeline'}
+        </p>
 
-        <div className="relative grid grid-cols-2 sm:grid-cols-4 gap-4 mb-10 px-1">
-          <StatCard
-            icon={Send}
-            label="Applied"
-            value={applications.length}
-            color="text-stageApplied"
-            bg="bg-stageApplied/10"
-            trend={weeklyApplyTrend}
-            trendColor="bg-stageApplied"
+        <div className="mb-10">
+          <StatsBento
+            appliedCount={applications.length}
+            weeklyTrend={weeklyApplyTrend}
+            offersCount={pipelineCounts.offer}
+            interviewCount={pipelineCounts.interview}
           />
-          <StatCard
-            icon={MessageSquare}
-            label="Interviews"
-            value={pipelineCounts.interview}
-            color="text-stageInterview"
-            bg="bg-stageInterview/10"
-            trend={weeklyInterviewTrend}
-            trendColor="bg-stageInterview"
-          />
-          <StatCard icon={Trophy} label="Offers" value={pipelineCounts.offer} color="text-stageOffer" bg="bg-stageOffer/10" />
-          <StatCard icon={ListChecks} label="Open jobs" value={pipelineCounts.new} color="text-signal" bg="bg-signal/10" />
         </div>
 
         <div className="bg-white border border-line rounded-2xl p-6 mb-10">
@@ -481,33 +443,4 @@ function EmptyState({ icon: Icon, title, body }) {
 
 function safeName(name) {
   return (name || 'company').replace(/\s+/g, '_')
-}
-
-function StatCard({ icon: Icon, label, value, color, bg, trend, trendColor }) {
-  const max = trend ? Math.max(...trend, 1) : 1
-  return (
-    <div className="bg-white border border-line rounded-2xl p-5 shadow-md">
-      <div className="flex items-center gap-4">
-        <div className={`shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${bg} ${color}`}>
-          <Icon size={18} />
-        </div>
-        <div className="flex-1">
-          <p className="text-2xl font-semibold font-mono leading-none">{value}</p>
-          <p className="text-xs text-slate mt-1.5">{label}</p>
-        </div>
-        {trend && (
-          <div className="flex items-end gap-0.5 h-8 shrink-0">
-            {trend.map((v, i) => (
-              <div
-                key={i}
-                className={`w-1.5 rounded-sm ${v > 0 ? trendColor : 'bg-line'}`}
-                style={{ height: `${Math.max((v / max) * 100, 12)}%` }}
-                title={`${v} this week`}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  )
 }
