@@ -12,7 +12,6 @@ import {
   ListChecks,
   ExternalLink,
   RefreshCw,
-  Check,
   Briefcase,
   Kanban,
   Inbox,
@@ -25,7 +24,7 @@ const STATUS_COLUMNS = [
   { key: 'rejected', label: 'Rejected', text: 'text-stageRejected', bg: 'bg-stageRejected/5', border: 'border-stageRejected/30' },
 ]
 
-const STALE_AFTER_DAYS = 21 // Adzuna/Jooble don't give real closing dates — this is an estimate
+const STALE_AFTER_DAYS = 7 // Adzuna/Jooble don't give real closing dates — this is an estimate
 
 function daysAgo(dateStr) {
   if (!dateStr) return null
@@ -175,6 +174,7 @@ export default function Dashboard() {
   }
 
   const activeJobs = jobs.filter((j) => {
+    if (j.is_applied) return false
     const age = daysAgo(j.posted_at || j.created_at)
     return age === null || age <= STALE_AFTER_DAYS
   })
@@ -274,7 +274,8 @@ export default function Dashboard() {
           </div>
           <p className="text-xs text-slate mb-4">
             Job boards don't share real closing dates, so listings older than {STALE_AFTER_DAYS} days are hidden as a
-            precaution — they may already be filled. Senior/lead/manager roles are filtered out automatically.
+            precaution — they may already be filled. Applying moves a role straight to your Applications board below.
+            Senior/lead/manager roles are filtered out automatically.
           </p>
           {loading ? (
             <p className="text-sm text-slate">Loading…</p>
@@ -334,20 +335,14 @@ export default function Dashboard() {
 function JobCard({ job, applyingId, onApply }) {
   const age = daysAgo(job.posted_at || job.created_at)
   return (
-    <div
-      className={`border-l-4 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 transition-all ${
-        job.is_applied
-          ? 'bg-paper border-line opacity-60'
-          : 'bg-white border-signal shadow-sm hover:shadow-md'
-      }`}
-    >
+    <div className="border-l-4 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 transition-all bg-white border-signal shadow-sm hover:shadow-md">
       <div className="min-w-0">
-        <h3 className={`font-semibold ${job.is_applied ? 'text-slate' : 'text-ink'}`}>{job.title}</h3>
+        <h3 className="font-semibold text-ink">{job.title}</h3>
         <p className="text-sm text-slate mt-0.5">
           {job.company} · {job.location}
         </p>
         <div className="flex items-center gap-2 mt-2 flex-wrap">
-          {job.salary && !job.is_applied && (
+          {job.salary && (
             <span className="text-xs font-mono bg-stageOffer/10 text-stageOffer px-2 py-0.5 rounded-full">
               {job.salary}
             </span>
@@ -371,19 +366,13 @@ function JobCard({ job, applyingId, onApply }) {
         >
           View <ExternalLink size={13} />
         </a>
-        {job.is_applied ? (
-          <span className="text-sm inline-flex items-center gap-1 text-slate font-mono px-3 py-1.5">
-            <Check size={14} /> Applied
-          </span>
-        ) : (
-          <button
-            onClick={() => onApply(job)}
-            disabled={applyingId === job.id}
-            className="text-sm bg-signal hover:bg-signalDark text-white font-medium px-4 py-2 rounded-card transition-colors disabled:opacity-50 shadow-sm"
-          >
-            {applyingId === job.id ? 'Generating…' : 'Apply'}
-          </button>
-        )}
+        <button
+          onClick={() => onApply(job)}
+          disabled={applyingId === job.id}
+          className="text-sm bg-signal hover:bg-signalDark text-white font-medium px-4 py-2 rounded-card transition-colors disabled:opacity-50 shadow-sm"
+        >
+          {applyingId === job.id ? 'Generating…' : 'Apply'}
+        </button>
       </div>
     </div>
   )
