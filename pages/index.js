@@ -15,7 +15,19 @@ const STATUS_COLUMNS = [
   { key: 'rejected', label: 'Rejected', text: 'text-stageRejected', bg: 'bg-stageRejected/5', border: 'border-stageRejected/30' },
 ]
 
-const STALE_AFTER_DAYS = 7 // Adzuna/Jooble don't give real closing dates — this is an estimate
+// Adzuna/Jooble don't give real closing dates, so these windows are estimates.
+const STALE_AFTER_DAYS = 7
+// Graduate/internship/learnership programmes usually run open application windows for longer.
+const PROGRAMME_STALE_AFTER_DAYS = 30
+const PROGRAMME_TITLE = /\b(graduates?|interns?|internships?|trainees?|learnerships?|apprentice(ship)?s?|programme|program)\b/i
+
+function staleLimitFor(job) {
+  return PROGRAMME_TITLE.test(job.title || '') ? PROGRAMME_STALE_AFTER_DAYS : STALE_AFTER_DAYS
+}
+
+function postedDate(job) {
+  return job.posted_at || job.created_at
+}
 
 function daysAgo(dateStr) {
   if (!dateStr) return null
@@ -45,7 +57,7 @@ function weekLabel(dateStr) {
 function groupByWeek(jobs) {
   const groups = new Map()
   for (const job of jobs) {
-    const label = weekLabel(job.created_at)
+    const label = weekLabel(postedDate(job))
     if (!groups.has(label)) groups.set(label, [])
     groups.get(label).push(job)
   }
@@ -60,6 +72,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [applyingId, setApplyingId] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
+  const [showOlder, setShowOlder] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -78,7 +91,7 @@ export default function Dashboard() {
     try {
       const [{ data: profileData }, { data: jobsData }, { data: appsData }] = await Promise.all([
         supabase.from('users').select('*').eq('id', userId).single(),
-        supabase.from('jobs').select('*').order('created_at', { ascending: false }).limit(100),
+        supabase.from('jobs').select('*').order('created_at', { ascending: false }).limit(200),
         supabase
           .from('applications')
           .select('*, jobs(*)')
@@ -164,20 +177,24 @@ export default function Dashboard() {
     }
   }
 
-  const activeJobs = jobs.filter((j) => {
-    if (j.is_applied) return false
-    const age = daysAgo(j.posted_at || j.created_at)
-    return age === null || age <= STALE_AFTER_DAYS
+  const openJobs = jobs.filter((j) => !j.is_applied)
+  const freshJobs = openJobs.filter((j) => {
+    const age = daysAgo(postedDate(j))
+    return age === null || age <= staleLimitFor(j)
   })
+  const hiddenCount = openJobs.length - freshJobs.length
+  const visibleJobs = [...(showOlder ? openJobs : freshJobs)].sort(
+    (a, b) => new Date(postedDate(b)).getTime() - new Date(postedDate(a)).getTime()
+  )
 
   const pipelineCounts = {
-    new: activeJobs.filter((j) => !j.is_applied).length,
+    new: freshJobs.length,
     applied: applications.filter((a) => a.status === 'applied').length,
     interview: applications.filter((a) => a.status === 'interview').length,
     offer: applications.filter((a) => a.status === 'offer').length,
   }
 
-  const weeklyGroups = groupByWeek(activeJobs)
+  const weeklyGroups = groupByWeek(visibleJobs)
 
   function last4WeekCounts(items, dateField) {
     const now = new Date()
@@ -234,20 +251,30 @@ export default function Dashboard() {
               {refreshing ? 'Refreshing…' : 'Refresh listings'}
             </button>
           </div>
-          <p className="text-xs text-slate mb-4">
-            Job boards don't share real closing dates, so listings older than {STALE_AFTER_DAYS} days are hidden as a
-            precaution — they may already be filled. Applying moves a role straight to your Applications board below.
-            Senior/lead/manager roles are filtered out automatically.
-          </p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-4 text-xs text-slate">
+            <span>
+              Job boards don't share real closing dates, so general roles older than {STALE_AFTER_DAYS} days are hidden
+              (graduate, internship and learnership programmes get {PROGRAMME_STALE_AFTER_DAYS} days). Senior roles are
+              filtered out.
+            </span>
+            {hiddenCount > 0 && (
+              <button
+                onClick={() => setShowOlder((v) => !v)}
+                className="underline text-signal hover:text-signalDark"
+              >
+                {showOlder ? 'Hide older listings' : `Show ${hiddenCount} older listing${hiddenCount === 1 ? '' : 's'}`}
+              </button>
+            )}
+          </div>
           {loading ? (
             <p className="text-sm text-slate">Loading…</p>
-          ) : activeJobs.length === 0 ? (
+          ) : visibleJobs.length === 0 ? (
             <EmptyState
               icon={Inbox}
               title="No listings yet"
               body={
                 jobs.length > 0
-                  ? "All current listings are older than 3 weeks and were hidden as likely closed. Click Refresh listings to check for new ones."
+                  ? "Everything saved is older than the freshness window, so it was hidden. Click Refresh listings to look for new roles."
                   : "Click Refresh listings above to pull in jobs now, or wait for the weekly automatic run."
               }
             />
